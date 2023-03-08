@@ -1,6 +1,5 @@
 package com.hct.bank.service;
 
-import com.hct.bank.exceptions.InvalidInputException;
 import com.hct.bank.model.*;
 import com.hct.bank.model.request.*;
 import com.hct.bank.model.response.CreateCustResponse;
@@ -8,12 +7,12 @@ import com.hct.bank.model.response.IResponse;
 import com.hct.bank.repository.*;
 import com.hct.bank.utils.IDGenerator;
 import com.hct.bank.validations.PasswordValidation;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 
 @Service
@@ -133,39 +132,44 @@ public class BankServiceImpl implements IBankService {
         return iCustomerDetailsRepo.findAll();
     }
 
-//    @Override
-//    public long saveAccTransaction(AccTransReqBody accTransReq) {
-//        AccTransactions accTransactions = new AccTransactions();
-//        AccBalance accBal = new AccBalance();
-//
-//        long fromAccId = accTransReq.getFromAccountId();
-//        long toAccId = accTransReq.getToAccountId();
-//        accTransactions.setCredit(accTransReq.getCredit());
-//        accTransactions.setDebit(accTransReq.getDebit());
-//
-//        if(accTransReq.getCredit()!=0&&)
-//
-//        accTransactions.setTransactionId(IDGenerator.getId(TRANSACTION_ID_LENGTH));
+    @Override
+    public double retrieveBalance(long accId){
+        AccBalance accBalance = new AccBalance();
+        Optional<AccBalance> accountId = iAccBalanceRepo.findById(accId);
+        return accBalance.getBalance();
 
-//        return accTransactions.getTransactionId();
-//    }
+    }
 
-//    @Override
-//    public IResponse sendMoney(AccTransReqBody sendMoneyTransReq) {
-//        AccTransactions accTrans = new AccTransactions();
-//        AccBalance acBal = new AccBalance();
-//
-//        accTrans.setTransactionId(IDGenerator.getId(TRANSACTION_ID_LENGTH));
-//        accTrans.setTransactionRefid(IDGenerator.getId(TRANSACTION_REF_ID_LENGTH));
-//        accTrans.setAccId(sendMoneyTransReq.getFromAccountId());
-//        sendMoneyTransReq.getToAccountId();
-//        accTrans.setCredit(sendMoneyTransReq.getCredit());
-//        accTrans.setDebit(sendMoneyTransReq.getDebit());
-//        accTrans.setAvvBalance(acBal.getBalance());
-//        if (acBal.getBalance()>accTrans.getDebit());
-//        accTrans.setLastupdated(Timestamp.from(Instant.now()));
-//
-//        return null;
-//new comment added
-//    }
+    @Override
+    public String saveAccTransaction(AccTransReqBody accTransReq) {
+        AccTransactions accTransactions = new AccTransactions();
+        AccBalance accBal = new AccBalance();
+
+        long fromAccId = accTransReq.getFromAccountId();
+        long toAccId = accTransReq.getToAccountId();
+
+        accTransactions.setAccId(fromAccId);
+        accTransactions.setCredit(accTransReq.getCredit());
+        accTransactions.setDebit(accTransReq.getDebit());
+
+        if (accTransReq.getCredit() != 0 && accTransReq.getDebit() == 0) {
+            accBal.setBalance(accBal.getBalance() + accTransReq.getCredit());
+            accTransactions.setTransactionId(IDGenerator.getId(TRANSACTION_ID_LENGTH));
+        }
+        if (accTransReq.getDebit() != 0 && accTransReq.getCredit() == 0) {
+            if (accBal.getBalance() >= accTransReq.getDebit()) {
+                accBal.setBalance(accBal.getBalance() - accTransReq.getDebit());
+                accTransactions.setTransactionId(IDGenerator.getId(TRANSACTION_ID_LENGTH));
+            } else
+                return "Insufficient Balance";
+        }
+        iAccBalanceRepo.save(accBal);
+        long transRefId = IDGenerator.getId(TRANSACTION_REF_ID_LENGTH);
+        accTransactions.setTransactionRefid(transRefId);
+        accTransactions.setAvvBalance(accBal.getBalance());
+        accTransactions.setLastupdated(Timestamp.from(Instant.now()));
+        iAccTransactionsRepo.save(accTransactions);
+        return "Transaction Successful for " + accTransactions.getAccId();
+    }
+
 }
