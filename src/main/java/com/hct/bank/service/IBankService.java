@@ -15,6 +15,8 @@ public interface IBankService {
     boolean mapAccIdToCustId(AccToCustMap accToCustMap);
     String savePassword(CustLoginCredReqBody custLoginCredReq);
     List<CustomerDetails> findAll();
+    double retrieveBalance(long accountId);
+    String saveAccTransaction(AccTransReqBody accTransReq);
 //    long saveAccTransaction(AccTransReqBody accTransReq);
 
 
