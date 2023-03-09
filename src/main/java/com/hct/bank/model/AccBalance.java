@@ -14,6 +14,5 @@ public class AccBalance {
     @Id
     @Column(name = "acc_id")
     private long accId;
-    @Column(nullable = false)
     private double balance;
 }
