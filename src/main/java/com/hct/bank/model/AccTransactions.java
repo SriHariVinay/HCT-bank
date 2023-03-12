@@ -16,7 +16,7 @@ public class AccTransactions {
     @Column(name ="transaction_id")
     private long transactionId;
     @Column(name = "transaction_ref_id",nullable = false)
-    private long transactionRefid;
+    private long transactionRefId;
     @Column(name = "acc_id")
     private long accId;
     private double credit;

@@ -1,6 +1,7 @@
 package com.hct.bank.controller;
 
 import com.hct.bank.exceptions.InvalidInputException;
+import com.hct.bank.model.AccBalance;
 import com.hct.bank.model.CustomerDetails;
 import com.hct.bank.model.request.AccTransReqBody;
 import com.hct.bank.model.request.CustDetailsReqBody;
@@ -46,18 +47,16 @@ public class BankRestController {
         return iBankService.findAll();
     }
 
-    @GetMapping("/balances/{accId}")
-    public ResponseEntity<String> getBalance(@PathVariable("accId") long accId){
-        double balance = iBankService.retrieveBalance(accId);
-        return new ResponseEntity<String>("Acc balance is: "+balance,HttpStatus.OK);
+    @GetMapping("/balances")
+    public ResponseEntity<String> getBalance(@RequestParam long custId, @RequestParam("accId") long accId) {
+        double balance = (double) iBankService.retrieveBalance(custId,accId);
+        return new ResponseEntity<String>("Account balance is: " + balance, HttpStatus.OK);
     }
 
-    @PostMapping("/transaction")
+    @PostMapping("/transactions")
     public ResponseEntity<String> saveAccTransaction(@RequestBody AccTransReqBody accTransReqBody) {
         String response = iBankService.saveAccTransaction(accTransReqBody);
         return new ResponseEntity<String>((response != null ? response : new InvalidInputException("Invalid Details",
                 HttpStatus.BAD_REQUEST.value())).toString(), HttpStatus.CREATED);
     }
-
-
 }

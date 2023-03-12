@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
 
 @Service
@@ -31,10 +30,7 @@ public class BankServiceImpl implements IBankService {
     private final IAccTransactionsRepository iAccTransactionsRepo;
 
 
-    public BankServiceImpl(ICustomerDetailsRepository iCustomerDetailsRepo,
-                           ICustomerAddressRepository iCustomerAddressRepo,
-                           IAccBalanceRepository iAccBalanceRepo, IAccToCustMapRepository iAccToCustMapRepo,
-                           ICustLoginCredRepository iCustLoginCredRepo, IAccTransactionsRepository iAccTransactionsRepo) {
+    public BankServiceImpl(ICustomerDetailsRepository iCustomerDetailsRepo, ICustomerAddressRepository iCustomerAddressRepo, IAccBalanceRepository iAccBalanceRepo, IAccToCustMapRepository iAccToCustMapRepo, ICustLoginCredRepository iCustLoginCredRepo, IAccTransactionsRepository iAccTransactionsRepo) {
         this.iCustomerDetailsRepo = iCustomerDetailsRepo;
         this.iCustomerAddressRepo = iCustomerAddressRepo;
         this.iAccBalanceRepo = iAccBalanceRepo;
@@ -133,43 +129,99 @@ public class BankServiceImpl implements IBankService {
     }
 
     @Override
-    public double retrieveBalance(long accId){
-        AccBalance accBalance = new AccBalance();
-        Optional<AccBalance> accountId = iAccBalanceRepo.findById(accId);
-        return accBalance.getBalance();
-
+    public Object retrieveBalance(long custId, long accId) {
+        if (custId == 0 && accId != 0) {
+            return iAccBalanceRepo.findById(accId).get().getBalance();
+        }
+        if (custId != 0 && accId == 0) {
+            long accountId = iAccToCustMapRepo.findAccIdByCustId(custId);
+            return iAccBalanceRepo.findById(accountId).get().getBalance();
+        }
+        if (custId != 0 && accId != 0) {
+            long accountId = iAccToCustMapRepo.findAccIdByCustId(custId);
+            if (accountId == accId) {
+                return iAccBalanceRepo.findById(accountId).get().getBalance();
+            } else {
+                return "Given AccountId doesn't exists..!";
+            }
+        }
+        return null;
     }
 
     @Override
     public String saveAccTransaction(AccTransReqBody accTransReq) {
-        AccTransactions accTransactions = new AccTransactions();
-        AccBalance accBal = new AccBalance();
+        Long fromAccId = accTransReq.getAccId();
+        Long toAccId = accTransReq.getToAccId();
+        Double fromAccBal = iAccBalanceRepo.findBalanceByAccId(fromAccId);
+        Double toAccBal = iAccBalanceRepo.findBalanceByAccId(toAccId);
 
-        long fromAccId = accTransReq.getFromAccountId();
-        long toAccId = accTransReq.getToAccountId();
+        AccTransactions fromTransaction = new AccTransactions();
+        AccTransactions toTransaction = new AccTransactions();
 
-        accTransactions.setAccId(fromAccId);
-        accTransactions.setCredit(accTransReq.getCredit());
-        accTransactions.setDebit(accTransReq.getDebit());
+        if (accTransReq.getType().equals("CREDIT")) {
+            if (fromAccBal >= accTransReq.getAmount()) {
+                //From Customer(Debit for him)
+                fromTransaction.setTransactionId(IDGenerator.getId(TRANSACTION_ID_LENGTH));
+                long tRefId = IDGenerator.getId(TRANSACTION_REF_ID_LENGTH);
+                fromTransaction.setTransactionRefId(tRefId);
+                fromTransaction.setAccId(fromAccId);
+                fromTransaction.setCredit(0.00);
+                fromTransaction.setDebit(accTransReq.getAmount());
+                fromTransaction.setAvvBalance(fromAccBal - accTransReq.getAmount());
+                fromTransaction.setLastupdated(Timestamp.from(Instant.now()));
 
-        if (accTransReq.getCredit() != 0 && accTransReq.getDebit() == 0) {
-            accBal.setBalance(accBal.getBalance() + accTransReq.getCredit());
-            accTransactions.setTransactionId(IDGenerator.getId(TRANSACTION_ID_LENGTH));
+                iAccBalanceRepo.debitBalanceByAccId(fromAccId, fromTransaction.getDebit());
+                iAccTransactionsRepo.save(fromTransaction);
+
+                //To Customer(CREDIT for him)
+                toTransaction.setTransactionId(IDGenerator.getId(TRANSACTION_ID_LENGTH));
+                toTransaction.setTransactionRefId(tRefId);
+                toTransaction.setAccId(toAccId);
+                toTransaction.setCredit(accTransReq.getAmount());
+                toTransaction.setDebit(0.00);
+                toTransaction.setAvvBalance(toAccBal + accTransReq.getAmount());
+                toTransaction.setLastupdated(Timestamp.from(Instant.now()));
+
+                iAccBalanceRepo.creditBalanceByAccId(toAccId, toTransaction.getCredit());
+                iAccTransactionsRepo.save(toTransaction);
+                return "Transaction Successful & TransactionRefId is : " + tRefId;
+            } else {
+                return "Enter valid credit amount";
+            }
         }
-        if (accTransReq.getDebit() != 0 && accTransReq.getCredit() == 0) {
-            if (accBal.getBalance() >= accTransReq.getDebit()) {
-                accBal.setBalance(accBal.getBalance() - accTransReq.getDebit());
-                accTransactions.setTransactionId(IDGenerator.getId(TRANSACTION_ID_LENGTH));
-            } else
-                return "Insufficient Balance";
-        }
-        iAccBalanceRepo.save(accBal);
-        long transRefId = IDGenerator.getId(TRANSACTION_REF_ID_LENGTH);
-        accTransactions.setTransactionRefid(transRefId);
-        accTransactions.setAvvBalance(accBal.getBalance());
-        accTransactions.setLastupdated(Timestamp.from(Instant.now()));
-        iAccTransactionsRepo.save(accTransactions);
-        return "Transaction Successful for " + accTransactions.getAccId();
+
+        if (accTransReq.getType().equals("DEBIT")) {
+            if (toAccBal >= accTransReq.getAmount()) {
+                //From Customer(CREDIT for him)
+                fromTransaction.setTransactionId(IDGenerator.getId(TRANSACTION_ID_LENGTH));
+                long tRefId = IDGenerator.getId(TRANSACTION_REF_ID_LENGTH);
+                fromTransaction.setTransactionRefId(tRefId);
+                fromTransaction.setAccId(fromAccId);
+                fromTransaction.setCredit(accTransReq.getAmount());
+                fromTransaction.setDebit(0.00);
+                fromTransaction.setAvvBalance(fromAccBal + accTransReq.getAmount());
+                fromTransaction.setLastupdated(Timestamp.from(Instant.now()));
+
+                iAccBalanceRepo.creditBalanceByAccId(fromAccId, fromTransaction.getCredit());
+                iAccTransactionsRepo.save(fromTransaction);
+
+                //To Customer (DEBIT for him)
+                toTransaction.setTransactionId(IDGenerator.getId(TRANSACTION_ID_LENGTH));
+                toTransaction.setTransactionRefId(tRefId);
+                toTransaction.setAccId(toAccId);
+                toTransaction.setCredit(0.00);
+                toTransaction.setDebit(accTransReq.getAmount());
+                toTransaction.setAvvBalance(toAccBal - accTransReq.getAmount());
+                toTransaction.setLastupdated(Timestamp.from(Instant.now()));
+
+                iAccBalanceRepo.debitBalanceByAccId(toAccId, toTransaction.getDebit());
+                iAccTransactionsRepo.save(toTransaction);
+                return "Transaction Successful & TransactionRefId is : " + tRefId;
+            } else {
+                return "Enter valid debit amount";
+            }
+        } else
+            return "please enter valid type of transaction i.e., CREDIT / DEBIT";
     }
 
 }
