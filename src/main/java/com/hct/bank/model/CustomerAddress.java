@@ -17,6 +17,8 @@ public class CustomerAddress {
     @Column(name = "address_lane")
     private String addressLane;
     private long pin;
+
+    @Column(name = "last_updated",nullable = false)
     private Timestamp lastUpdated;
 
 }

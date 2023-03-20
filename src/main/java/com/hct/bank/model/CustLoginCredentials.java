@@ -14,6 +14,6 @@ public class CustLoginCredentials {
     @Id
     @Column(name = "cust_id")
     private long custId;
-    @Column(nullable = false)
+    @Column(name = "password",nullable = false)
     private String password;
 }

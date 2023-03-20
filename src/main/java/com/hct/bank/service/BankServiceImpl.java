@@ -1,17 +1,19 @@
 package com.hct.bank.service;
 
+import com.hct.bank.controller.BankRestController;
 import com.hct.bank.model.*;
 import com.hct.bank.model.request.*;
-import com.hct.bank.model.response.CreateCustResponse;
-import com.hct.bank.model.response.IResponse;
+import com.hct.bank.model.response.*;
 import com.hct.bank.repository.*;
 import com.hct.bank.utils.IDGenerator;
 import com.hct.bank.validations.PasswordValidation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.List;
+import java.util.*;
 
 
 @Service
@@ -28,6 +30,7 @@ public class BankServiceImpl implements IBankService {
     private final IAccToCustMapRepository iAccToCustMapRepo;
     private final ICustLoginCredRepository iCustLoginCredRepo;
     private final IAccTransactionsRepository iAccTransactionsRepo;
+    private static final Logger logger = LoggerFactory.getLogger(BankServiceImpl.class);
 
 
     public BankServiceImpl(ICustomerDetailsRepository iCustomerDetailsRepo, ICustomerAddressRepository iCustomerAddressRepo, IAccBalanceRepository iAccBalanceRepo, IAccToCustMapRepository iAccToCustMapRepo, ICustLoginCredRepository iCustLoginCredRepo, IAccTransactionsRepository iAccTransactionsRepo) {
@@ -39,8 +42,18 @@ public class BankServiceImpl implements IBankService {
         this.iAccTransactionsRepo = iAccTransactionsRepo;
     }
 
+    /**
+     * To create a customer, follow the steps below :
+     *
+     * Save address details by creating <i><b>Address_Id</b></i> and persist <i><b>Address_Id</b></i> into <i><b>Cust_Details</b></i> table by creating <i><b>Cust_Id</b></i>.
+     * Create a new <i><b>Acc_Id</b></i> and persist it into <i><b>Acc_Balance</b></i> Table with a static opening balance of 500.0.
+     * Insert <i><b>Cust_Id</b></i> and <i><b>Acc_Id</b></i> into <i><b>Cust_Acc_Map</b></i> Table.
+     * @param custDetailsReq
+     * @return
+     */
     @Override
-    public IResponse saveCustomerDetails(CustDetailsReqBody custDetailsReq) {
+    public CreateCustResponse saveCustomerDetails(CustDetailsReqBody custDetailsReq) {
+        logger.info("Inside savecustomerDetails()");
 
         Long addressId = saveCustomerAddress(custDetailsReq.getAddress());
         CustomerDetails customerDetails = new CustomerDetails();
@@ -61,11 +74,13 @@ public class BankServiceImpl implements IBankService {
         Long accId = updateAccount(null);
 
         boolean mapResult = mapAccIdToCustId(new AccToCustMap(accId, custId));
-        return mapResult ? new CreateCustResponse(custId) : null;
+        logger.info("returning CustdetailsResponse, Exiting savecustomerDetails()");
+        return mapResult ? new CreateCustResponse(custDetailsReq.getName(),custId,accId,iAccBalanceRepo.findBalanceByAccId(accId)) : null;
     }
 
     @Override
     public Long saveCustomerAddress(CustAddressReqBody custAdressReq) {
+        logger.info("Inside saveCustomerAddress()");
         CustomerAddress customerAddress = new CustomerAddress();
 
         customerAddress.setAddressId(IDGenerator.getId(ADDRESS_ID_LENGTH));
@@ -75,11 +90,13 @@ public class BankServiceImpl implements IBankService {
         customerAddress.setPin(custAdressReq.getPin());
         customerAddress.setLastUpdated(Timestamp.from(Instant.now()));
 
+        logger.info("Saved Address, exiting saveCustomerAddress()");
         return iCustomerAddressRepo.save(customerAddress).getAddressId();
     }
 
     @Override
     public Long updateAccount(AccBalanceReqBody accBalanceReq) {
+        logger.info("Inside updateAccount()");
         AccBalance accBal = new AccBalance();
 
         if (accBalanceReq == null) {
@@ -90,66 +107,114 @@ public class BankServiceImpl implements IBankService {
             accBal.setBalance(accBalanceReq.getBalance());
         }
 
+        logger.info("Saved AccBalance, exiting updateAccount()");
         return iAccBalanceRepo.save(accBal).getAccId();
     }
 
     @Override
     public boolean mapAccIdToCustId(AccToCustMap accToCustMap) {
+        logger.info("Inside mapAccIdToCustId()");
         AccToCustMap res = iAccToCustMapRepo.save(accToCustMap);
+        logger.info("mapped accId to custId, exiting mapAccIdToCustId()");
         return res != null;
     }
 
     @Override
-    public String savePassword(CustLoginCredReqBody custLoginCredReq) {
+    public PasswordResponse savePassword(CustLoginCredReqBody custLoginCredReq) {
+        logger.info("Inside savePassword()");
+
         CustLoginCredentials custLoginCred = new CustLoginCredentials();
 
         custLoginCred.setCustId(custLoginCredReq.getCustId());
         custLoginCred.setPassword(custLoginCredReq.getPassword());
 
-
         boolean res = PasswordValidation.isValidPassword(custLoginCredReq.getPassword());
         if (res) {
             iCustLoginCredRepo.save(custLoginCred);
-            return "details are saved for : " + custLoginCred.getCustId();
+            logger.info("password set successfully, exiting savePassword()");
+            return new PasswordResponse(custLoginCred.getCustId(), " Password Updated Successfully!!");
         } else {
-            return "Please Enter proper password";
-//                    "It contains at least 8 characters and at most 20 characters.\n" +
-//                    "It contains at least one digit.\n" +
-//                    "It contains at least one upper case alphabet.\n" +
-//                    "It contains at least one lower case alphabet.\n" +
-//                    "It contains at least one special character which includes !@#$%&*()-+=^.\n" +
-//                    "It doesn’t contain any white space.";
+            String response = "Please Enter proper password.\n " +
+                    "It contains at least 8 characters and at most 20 characters.\n" +
+                    "It contains at least one digit.\n" +
+                    "It contains at least one upper case alphabet.\n" +
+                    "It contains at least one lower case alphabet.\n" +
+                    "It contains at least one special character which includes !@#$%&*()-+=^.\n" +
+                    "It doesn’t contain any white space.";
+            logger.info("improper password, exiting savePassword()");
+            return new PasswordResponse(null, response);
         }
+    }
 
+
+    /**
+     * Get all customer details if no custId is provided or
+     * get details of a specific customer based on custId.
+     * @param custId {required=false}
+     * @return List of Customers Details
+     */
+    @Override
+    public CustResponses getCustomerDetails(Long custId) {
+        logger.info("Inside getCustomerDetails()");
+        List<CustResponse> custResponsesList = new ArrayList<>();
+        if (custId != null) {
+            Optional<CustomerDetails> custDetails = iCustomerDetailsRepo.findById(custId);
+            if (custDetails.isPresent()) {
+                CustomerDetails CustDetailsRes = custDetails.get();
+                custResponsesList.add(new CustResponse(CustDetailsRes.getCustId(), CustDetailsRes.getName(),
+                        CustDetailsRes.getAddressId(), CustDetailsRes.getPhone(), CustDetailsRes.getEmail()));
+            }
+        } else {
+            List<CustomerDetails> custDetailsList = iCustomerDetailsRepo.findAll();
+
+            for (CustomerDetails custDetails : custDetailsList) {
+                custResponsesList.add(new CustResponse(custDetails.getCustId(), custDetails.getName(),
+                        custDetails.getAddressId(), custDetails.getPhone(), custDetails.getEmail()));
+            }
+
+        }
+        logger.info("Exiting getCustomerDetails()");
+        return new CustResponses(custResponsesList);
     }
 
     @Override
-    public List<CustomerDetails> findAll() {
-        return iCustomerDetailsRepo.findAll();
-    }
-
-    @Override
-    public Object retrieveBalance(long custId, long accId) {
-        if (custId == 0 && accId != 0) {
-            return iAccBalanceRepo.findById(accId).get().getBalance();
+    public IResponse retrieveBalance(Long custId, Long accId) {
+        logger.info("Inside getCustomerDetails()");
+        AccBalance accBalance = new AccBalance();
+        if (custId == null && accId != null) {
+            Optional<AccBalance> details = iAccBalanceRepo.findById(accId);
+            logger.info("AccBalance fetched by accId, exiting getCustomerDetails()");
+            return new AccBalanceResponse(details.get().getAccId(),
+                    details.get().getBalance());
         }
-        if (custId != 0 && accId == 0) {
-            long accountId = iAccToCustMapRepo.findAccIdByCustId(custId);
-            return iAccBalanceRepo.findById(accountId).get().getBalance();
+        if (custId != null && accId == null) {
+            Long accountId = iAccToCustMapRepo.findAccIdByCustId(custId);
+            Optional<AccBalance> details = iAccBalanceRepo.findById(accountId);
+            logger.info("AccBalance fetched by custId, exiting getCustomerDetails()");
+            return new AccBalanceResponse(details.get().getAccId(), details.get().getBalance());
         }
-        if (custId != 0 && accId != 0) {
-            long accountId = iAccToCustMapRepo.findAccIdByCustId(custId);
-            if (accountId == accId) {
-                return iAccBalanceRepo.findById(accountId).get().getBalance();
+        if (custId == null && accId == null) {
+            String message = "Both custId and accId can't be null. Please enter valid details";
+            logger.info("custId & accId not provided, exiting getCustomerDetails()");
+            return new MessageResponse(message);
+        }
+        if (custId != null && accId != null) {
+            Long accountId = iAccToCustMapRepo.findAccIdByCustId(custId);
+            if (accId.equals(accountId)) {
+                Optional<AccBalance> details = iAccBalanceRepo.findById(accountId);
+                logger.info("AccBalance fetched by accId & custId, exiting getCustomerDetails()");
+                return new AccBalanceResponse(details.get().getAccId(), details.get().getBalance());
             } else {
-                return "Given AccountId doesn't exists..!";
+                String message = "Given AccId & custId doesn't mapped";
+                logger.info("provided accId & custId are not mapped, exiting getCustomerDetails()");
+                return new MessageResponse(message);
             }
         }
         return null;
     }
 
     @Override
-    public String saveAccTransaction(AccTransReqBody accTransReq) {
+    public IResponse saveAccTransaction(AccTransReqBody accTransReq) {
         Long fromAccId = accTransReq.getAccId();
         Long toAccId = accTransReq.getToAccId();
         Double fromAccBal = iAccBalanceRepo.findBalanceByAccId(fromAccId);
@@ -184,9 +249,9 @@ public class BankServiceImpl implements IBankService {
 
                 iAccBalanceRepo.creditBalanceByAccId(toAccId, toTransaction.getCredit());
                 iAccTransactionsRepo.save(toTransaction);
-                return "Transaction Successful & TransactionRefId is : " + tRefId;
+                return new MessageResponse("Transaction Successful & TransactionRefId is : " + tRefId);
             } else {
-                return "Enter valid credit amount";
+                return new MessageResponse("Enter valid credit amount");
             }
         }
 
@@ -216,12 +281,53 @@ public class BankServiceImpl implements IBankService {
 
                 iAccBalanceRepo.debitBalanceByAccId(toAccId, toTransaction.getDebit());
                 iAccTransactionsRepo.save(toTransaction);
-                return "Transaction Successful & TransactionRefId is : " + tRefId;
+                return new MessageResponse("Transaction Successful & TransactionRefId is : " + tRefId);
             } else {
-                return "Enter valid debit amount";
+                return new MessageResponse("Enter valid debit amount");
             }
         } else
-            return "please enter valid type of transaction i.e., CREDIT / DEBIT";
+            return new MessageResponse("please enter valid type of transaction i.e., CREDIT / DEBIT");
+    }
+
+    @Override
+    public IResponse getTransactions(Long accId, Long transactionRefId) {
+        List<AccTransactionsResponse> accTransactionsList = new ArrayList<>();
+        if (transactionRefId == null && accId != null) {
+           List<AccTransactions> res = iAccTransactionsRepo.findTransactionsFromAId(accId);
+            if (res.size()>0) {
+
+                res.stream().forEach(accTransactions -> accTransactionsList.add(new AccTransactionsResponse(accTransactions.getTransactionId(),
+                        accTransactions.getTransactionRefId(), accTransactions.getAccId(), accTransactions.getCredit(),
+                        accTransactions.getDebit(), accTransactions.getAvvBalance(), accTransactions.getLastupdated())));
+            }
+            return new AccTransactionListResponse(accTransactionsList);
+        }
+
+        if (transactionRefId != null && accId == null) {
+            List<AccTransactions> res = iAccTransactionsRepo.findTransactionsFromTId(transactionRefId);
+            if (res.size()>0) {
+
+                res.stream().forEach(accTransactions -> accTransactionsList.add(new AccTransactionsResponse(accTransactions.getTransactionId(),
+                        accTransactions.getTransactionRefId(), accTransactions.getAccId(), accTransactions.getCredit(),
+                        accTransactions.getDebit(), accTransactions.getAvvBalance(), accTransactions.getLastupdated())));
+            }
+            return new AccTransactionListResponse(accTransactionsList);
+        }
+        if (transactionRefId != null && accId != null) {
+            Optional<AccTransactions> res = iAccTransactionsRepo.findById(iAccTransactionsRepo.findTIdFromAIdAndTRId(accId, transactionRefId));
+            if (res.isPresent()) {
+
+                res.stream().forEach(accTransactions -> accTransactionsList.add(new AccTransactionsResponse(accTransactions.getTransactionId(),
+                        accTransactions.getTransactionRefId(), accTransactions.getAccId(), accTransactions.getCredit(),
+                        accTransactions.getDebit(), accTransactions.getAvvBalance(), accTransactions.getLastupdated())));
+            }
+            return new AccTransactionListResponse(accTransactionsList);
+        }
+        if (transactionRefId == null && accId == null) {
+            String res = "Both Transaction ReferenceId and AccountId cannot be zero. Please give valid details.";
+            return new  MessageResponse(res);
+        }
+        return new AccTransactionListResponse(accTransactionsList);
     }
 
 }
