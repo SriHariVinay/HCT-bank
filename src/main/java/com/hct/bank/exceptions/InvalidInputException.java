@@ -6,14 +6,11 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public class InvalidInputException implements IException {
     public String message = null;
-    public int status;
 //    public String errorCode;
 //    public HttpStatus httpStatus;
     @Override
     public void setMessage(String message, int status) {
         this.message = message;
-        this.status = status;
-
     }
 
 //    @Override

@@ -19,7 +19,9 @@ public class CustomerDetails {
     private long phone;
     @Column(nullable = false)
     private String email;
+    @Column(nullable = false)
     private Timestamp created;
+    @Column(name = "last_updated",nullable = false)
     private Timestamp lastUpdated;
 
 }

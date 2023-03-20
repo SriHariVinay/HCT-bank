@@ -5,9 +5,10 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class CreateCustResponse implements IResponse {
+public class CustResponse {
+    private long custId;
     private String name;
-    private Long custId;
-    private Long accId;
-    private Double balance;
+    private Long addressId;
+    private long phone;
+    private String email;
 }

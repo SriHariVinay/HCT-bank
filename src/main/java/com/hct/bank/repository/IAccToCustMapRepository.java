@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface IAccToCustMapRepository extends JpaRepository<AccToCustMap,Long> {
     @Query("select accId from AccToCustMap where custId = ?1")
-    public long findAccIdByCustId(Long custId);
+    public Long findAccIdByCustId(Long custId);
 }

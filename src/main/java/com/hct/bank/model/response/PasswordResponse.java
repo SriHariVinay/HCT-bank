@@ -2,12 +2,12 @@ package com.hct.bank.model.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.RequiredArgsConstructor;
 
 @Data
 @AllArgsConstructor
-public class CreateCustResponse implements IResponse {
-    private String name;
+@RequiredArgsConstructor
+public class PasswordResponse implements IResponse{
     private Long custId;
-    private Long accId;
-    private Double balance;
+    private String response;
 }

@@ -5,7 +5,9 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class CreatePasswordResponse implements IResponse{
-    private long custId;
-    private String report;
+public class AccBalanceResponse implements IResponse {
+    private Long accId;
+    private Double balance;
+
 }
+

@@ -18,7 +18,7 @@ public class AccToCustMap {
     @Id
     @Column(name = "acc_id")
     private long accId;
-    @Column(name = "cust_id")
+    @Column(name = "cust_id",nullable = false)
     private long custId;
 
 

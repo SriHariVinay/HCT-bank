@@ -1,6 +1,7 @@
 package com.hct.bank.model;
 
 import lombok.Data;
+import lombok.NonNull;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -14,5 +15,6 @@ public class AccBalance {
     @Id
     @Column(name = "acc_id")
     private long accId;
+    @Column(name="balance",nullable = false)
     private double balance;
 }

@@ -21,7 +21,8 @@ public class AccTransactions {
     private long accId;
     private double credit;
     private double debit;
-    @Column(name = "avv_balance ")
+    @Column(name = "avil_balance ")
     private double avvBalance;
+    @Column(name = "last_updated")
     private Timestamp lastupdated;
 }
